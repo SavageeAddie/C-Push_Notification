@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Lato:wght@100;300;400;700;900&display=swap");
+
+body {
+  font-family: "Lato", sans-serif;
+  font-weight: 400;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 400;
+}
+
+.container {
+  @apply mx-auto px-4 lg:px-0;
+}
+.btn-dark {
+  @apply bg-dark-900 text-light-100;
+}
+.btn-primary {
+  @apply bg-primary-700 text-dark-900;
+}
+.btn,
+.btn-lg {
+  @apply uppercase text-center;
+}
+.btn {
+  @apply p-4;
+}
+
+.link {
+  @apply text-primary-700 underline;
+}
+
+* {
+  outline: 0;
+}
+
+.Toastify__toast--error {
+  @apply bg-red-600 !important;
+}
+
+.Toastify__toast--success {
+  @apply bg-primary-700 text-dark-900 !important;
+}
+
+.card {
+  @apply shadow-md p-4 border rounded-lg border-primary-700;
+}

@@ -1,0 +1,44 @@
+version: "3"
+
+services:
+  backend:
+    build:
+      context: ./notifications-listener-server
+      dockerfile: ComposeDockerfile
+    depends_on:
+      - db
+    volumes:
+      - ./notifications-listener-server:/workspace
+    ports:
+      - 8000:8000
+  db:
+    image: mongo:4.2.21-bionic
+    restart: unless-stopped
+    volumes:
+      - mongodb-data:/data/db
+    ports:
+      - 27017:27017
+  # subscriber:
+  #   build:
+  #     context: ./subscriber-pwa
+  #     dockerfile: ComposeDockerfile
+  #   volumes:
+  #     - ./subscriber-pwa:/app
+  #   ports:
+  #     - 3000:3000
+  #   environment:
+  #     CHOKIDAR_USEPOLLING: "true"
+
+  # channel-manager:
+  #   build:
+  #     context: ./channel-manager-app
+  #     dockerfile: ComposeDockerfile
+  #   volumes:
+  #     - ./channel-manager-app:/app
+  #   ports:
+  #     - 4000:4000
+  #   environment:
+  #     CHOKIDAR_USEPOLLING: "true"
+
+volumes:
+  mongodb-data:
