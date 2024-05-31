@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma experimental ABIEncoderV2;
-// pragma solidity >=0.4.22 <0.9.0;
+pragma solidity >=0.4.22 <0.9.0;
 
-contract PushNotifications{
+contract PushNotifications {
     event NotifyOneInChannel(
         address recipient,
         uint256 channel,
@@ -20,8 +19,8 @@ contract PushNotifications{
         string body,
         string imageHash
     );
-    
-    struct Channel{
+
+    struct Channel {
         string name;
         string description;
         string iconHash;
@@ -29,60 +28,54 @@ contract PushNotifications{
         address admin;
         address[] subscribers;
     }
-    //      channel index => pushing address => permission boolean
-    mapping(uint256 => mapping(address => bool)) public pushAccess; // mapping of addresses OTHER THAN ADMIN who can send push notifications
 
-    Channel[] public channels; // this refers to a dynamic array containing info on various channels
+    // channel index => pushing address => permission boolean
+    mapping(uint256 => mapping(address => bool)) public pushAccess;
+    Channel[] public channels; // dynamic array containing info on various channels
+    // user address => channel index => subscription boolean
+    mapping (address => mapping(uint256 => bool)) public subscriptions;
+    mapping (address => string) public publicKeys; // used for sending notifications privately to one person
 
-    //  user address => channel index => subscription boolean
-    mapping (address=>mapping(uint256=>bool)) public subscriptions;  // mapping of addresses who subscribed to channels
-    mapping (address=>string) public publicKeys; // used for sending notifications privately to one person
-
-    function subscribe(uint256 _channel) public returns (bool){
-        require(_channel < channels.length,"channel does not exist");
-        require(subscriptions[msg.sender][_channel] != true,"You shouldn't be subscribed already");
+    function subscribe(uint256 _channel) public returns (bool) {
+        require(_channel < channels.length, "Channel does not exist.");
+        require(!subscriptions[msg.sender][_channel], "Already subscribed.");
         subscriptions[msg.sender][_channel] = true;
         channels[_channel].subscribers.push(msg.sender);
         return true;
     }
 
-    function unsubscribe(uint256 _channel) public returns (bool){
-        require(_channel < channels.length,"channel does not exist");
-        require(
-            subscriptions[msg.sender][_channel] == true,
-            "You should be subscribed already"
-        ); 
+    function unsubscribe(uint256 _channel) public returns (bool) {
+        require(_channel < channels.length, "Channel does not exist.");
+        require(subscriptions[msg.sender][_channel], "Not subscribed.");
         subscriptions[msg.sender][_channel] = false;
         Channel storage channel = channels[_channel];
-        uint256 indexToBeDeleted;
-        for(uint i=0;i<channel.subscribers.length;i++){
-            if(channel.subscribers[i] == msg.sender){
-                indexToBeDeleted = i;
+        uint256 length = channel.subscribers.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (channel.subscribers[i] == msg.sender) {
+                // Move the last element into the place to delete
+                channel.subscribers[i] = channel.subscribers[length - 1];
+                channel.subscribers.pop(); // Remove the last element
                 break;
             }
         }
-
-        // replace last element with current element
-        channel.subscribers[indexToBeDeleted] = channel.subscribers[channel.subscribers.length-1];
-
-        // remove the last element
-        channel.subscribers.pop();
         return true;
     }
+
     function createChannel(
         string memory _name,
         string memory _description,
         string memory _iconHash,
         string memory _badgeHash
-        ) public returns (uint256){
-        Channel memory channel;
-        channel.name = _name;
-        channel.description = _description;
-        channel.iconHash = _iconHash;
-        channel.badgeHash = _badgeHash;
-        channel.admin = msg.sender;
-        channels.push(channel);
-        return channels.length; // return the new standing count of channels
+    ) public returns (uint256) {
+        channels.push(Channel({
+            name: _name,
+            description: _description,
+            iconHash: _iconHash,
+            badgeHash: _badgeHash,
+            admin: msg.sender,
+            subscribers: new address 
+        }));
+        return channels.length; // return the new length of channels array
     }
 
     function editChannel(
@@ -91,33 +84,29 @@ contract PushNotifications{
         string memory _description,
         string memory _iconHash,
         string memory _badgeHash
-        ) 
-    public returns (bool){
-        require(_channel < channels.length,"channel does not exist");
-        require(msg.sender == channels[_channel].admin,"You must be the channel admin to edit a channel");
-        channels[_channel].name = _name;
-        channels[_channel].description = _description;
-        channels[_channel].iconHash = _iconHash;
-        channels[_channel].badgeHash = _badgeHash;
+    ) public returns (bool) {
+        require(_channel < channels.length, "Channel does not exist.");
+        require(msg.sender == channels[_channel].admin, "Only admin can edit.");
+        Channel storage channel = channels[_channel];
+        channel.name = _name;
+        channel.description = _description;
+        channel.iconHash = _iconHash;
+        channel.badgeHash = _badgeHash;
         return true;
     }
 
-    function setPublicKey(string memory _publicKey) public returns (bool){
+    function setPublicKey(string memory _publicKey) public returns (bool) {
         publicKeys[msg.sender] = _publicKey;
         return true;
     }
 
-    // this is useful when admin wants to also provide push access to another address
-    function setPushAccess(uint256 _channel,address _address,bool _access) public returns (bool){
-        require(_channel < channels.length,"channel does not exist");
-        require(msg.sender == channels[_channel].admin,"You must be the channel admin to set push access");
+    function setPushAccess(uint256 _channel, address _address, bool _access) public returns (bool) {
+        require(_channel < channels.length, "Channel does not exist.");
+        require(msg.sender == channels[_channel].admin, "Only admin can set push access.");
         pushAccess[_channel][_address] = _access;
         return true;
     }
 
-    // in the case of private notification, it is assumed that fields like title, action, body 
-    // and imageHash have already been encrypted by the sender who is compulsarily admin of channel
-    // in that case.
     function notifyOneInChannel(
         address _recipient,
         uint256 _channel,
@@ -126,68 +115,47 @@ contract PushNotifications{
         string memory _body,
         string memory _imageHash,
         bool _privateNotification
-    ) public returns (bool){
-        require(_channel < channels.length,"channel does not exist");
+    ) public returns (bool) {
+        require(_channel < channels.length, "Channel does not exist.");
         Channel memory channel = channels[_channel];
-        // require that the sender is an admin or one of the permissed addresses
-        if(_privateNotification){
-            require(channel.admin == msg.sender,"sender is not admin of channel, private notification can only be sent admin of channel.");
+        if (_privateNotification) {
+            require(channel.admin == msg.sender, "Private notification can only be
+            require(channel.admin == msg.sender, "Private notification can only be sent by the admin.");
+        } else {
+            require(channel.admin == msg.sender || pushAccess[_channel][msg.sender], "Public notifications can only be sent by the admin or authorized addresses.");
         }
-        else{
-            require(channel.admin == msg.sender || pushAccess[_channel][msg.sender] == true,"public notifications to one person in channel can only be sent by the admin or one of the allowed addresses");
-        }
+        require(subscriptions[_recipient][_channel], "Recipient must be subscribed to the channel.");
 
-        require(
-            subscriptions[_recipient][_channel] == true,
-            "recipient should be subscribed to the channel"
-        );
-
-        emit NotifyOneInChannel(
-            _recipient,
-            _channel,
-            _title,
-            _action,
-            _body,
-            _imageHash,
-            _privateNotification
-        );
-
+        emit NotifyOneInChannel(_recipient, _channel, _title, _action, _body, _imageHash, _privateNotification);
         return true;
     }
 
     function notifyAllInChannel(
         uint256 _channel,
         string memory _title,
-        string memory _action, 
+        string memory _action,
         string memory _body,
         string memory _imageHash
-    ) public returns (bool){
-        require(_channel < channels.length,"channel does not exist");
-        Channel memory channel = channels[_channel];
-        require(msg.sender == channel.admin || pushAccess[_channel][msg.sender] == true,"sender is not admin of channel or one of the other addresses who have push access");
+    ) public returns (bool) {
+        require(_channel < channels.length, "Channel does not exist.");
+        Channel storage channel = channels[_channel];
+        require(channel.admin == msg.sender || pushAccess[_channel][msg.sender], "Only admin or authorized addresses can send notifications.");
 
-        emit NotifyAllInChannel(
-            _channel,
-            _title,
-            _action,
-            _body,
-            _imageHash
-        );
-
+        emit NotifyAllInChannel(_channel, _title, _action, _body, _imageHash);
         return true;
     }
 
-    function subscribersCountInChannel(uint256 _channel) public view returns (uint256){
-        require(_channel < channels.length,"channel does not exist");
+    function subscribersCountInChannel(uint256 _channel) public view returns (uint256) {
+        require(_channel < channels.length, "Channel does not exist.");
         return channels[_channel].subscribers.length;
     }
 
-    function subscribersInChannel(uint256 _channel) public view returns (address [] memory){
-        require(_channel < channels.length,"channel does not exist");
+    function subscribersInChannel(uint256 _channel) public view returns (address[] memory) {
+        require(_channel < channels.length, "Channel does not exist.");
         return channels[_channel].subscribers;
     }
 
-    function allChannels() public view returns (Channel[] memory){
+    function allChannels() public view returns (Channel[] memory) {
         return channels;
     }
 }
